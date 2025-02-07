@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sushi Roll Drag & Drop Quiz with Tabs (All Rolls)</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    h2 {
+      margin-top: 40px;
+    }
+    /* Tab styles for ingredient pool */
+    .tab {
+      overflow: hidden;
+      background-color: #f1f1f1;
+      border: 2px solid #aaa;
+      margin-bottom: 10px;
+    }
+    .tab button {
+      background-color: inherit;
+      float: left;
+      border: none;
+      outline: none;
+      cursor: pointer;
+      padding: 10px 16px;
+      transition: 0.3s;
+      font-size: 14px;
+    }
+    .tab button:hover {
+      background-color: #ddd;
+    }
+    .tab button.active {
+      background-color: #ccc;
+    }
+    .tabcontent {
+      display: none;
+      padding: 10px;
+      border: 2px solid #aaa;
+      border-top: none;
+    }
+    .ingredient-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      gap: 5px;
+    }
+    .ingredient {
+      background-color: #f0f0f0;
+      border: 1px solid #ccc;
+      padding: 3px 5px;
+      font-size: 12px;
+      text-align: center;
+      cursor: move;
+    }
+    .ingredient.dragging {
+      opacity: 0.5;
+    }
+    .zone {
+      border: 2px dashed #aaa;
+      min-height: 80px;
+      padding: 10px;
+      width: 250px;
+      margin-bottom: 20px;
+    }
+    .zone.highlight {
+      border-color: #00aaff;
+      background-color: #e0f7ff;
+    }
+    .action-btn {
+      margin-right: 10px;
+      padding: 10px 15px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #feedback {
+      font-weight: bold;
+      margin-top: 20px;
+    }
+    #correct-answers {
+      margin-top: 20px;
+      font-size: 16px;
+    }
+    /* Optional drop zone containers (wrap and extra) */
+    .optional-zone {
+      display: none;
+    }
+    /* Container for drop zones */
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .container div {
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Sushi Roll Drag & Drop Quiz with Tabs</h1>
+  <p>
+    Drag the ingredients into the correct drop zones for the roll shown.<br>
+    (Double-click any dropped item to remove it.)
+  </p>
+  <h2 id="roll-name">Roll Name Here</h2>
+
+  <!-- Tabbed Ingredient Pool -->
+  <h3>Available Ingredients</h3>
+  <div class="tab">
+    <button class="tablinks active" onclick="openTab(event, 'Proteins')">Proteins</button>
+    <button class="tablinks" onclick="openTab(event, 'Vegetables')">Vegetables/Fruits</button>
+    <button class="tablinks" onclick="openTab(event, 'Sauces')">Sauces & Condiments</button>
+    <button class="tablinks" onclick="openTab(event, 'Toppings')">Toppings</button>
+    <button class="tablinks" onclick="openTab(event, 'Wraps')">Wraps</button>
+    <button class="tablinks" onclick="openTab(event, 'Others')">Others</button>
+  </div>
+
+  <div id="Proteins" class="tabcontent" style="display: block;">
+    <div id="pool-proteins" class="ingredient-grid"></div>
+  </div>
+  <div id="Vegetables" class="tabcontent">
+    <div id="pool-vegetables" class="ingredient-grid"></div>
+  </div>
+  <div id="Sauces" class="tabcontent">
+    <div id="pool-sauces" class="ingredient-grid"></div>
+  </div>
+  <div id="Toppings" class="tabcontent">
+    <div id="pool-toppings" class="ingredient-grid"></div>
+  </div>
+  <div id="Wraps" class="tabcontent">
+    <div id="pool-wraps" class="ingredient-grid"></div>
+  </div>
+  <div id="Others" class="tabcontent">
+    <div id="pool-others" class="ingredient-grid"></div>
+  </div>
+
+  <!-- Drop Zones for assembling the roll -->
+  <h3>Your Roll Assembly</h3>
+  <div class="container">
+    <div>
+      <h4>Inside Ingredients</h4>
+      <div id="inside-zone" class="zone">Drop inside ingredients here</div>
+    </div>
+    <div>
+      <h4>On Top Ingredients</h4>
+      <div id="ontop-zone" class="zone">Drop on top ingredients here</div>
+    </div>
+    <div>
+      <h4>Sauce</h4>
+      <div id="sauce-zone" class="zone">Drop sauce here</div>
+    </div>
+    <div id="wrap-container" class="optional-zone">
+      <h4>Wrap</h4>
+      <div id="wrap-zone" class="zone">Drop wrap here</div>
+    </div>
+    <div id="extra-container" class="optional-zone">
+      <h4>Extra</h4>
+      <div id="extra-zone" class="zone">Drop extra ingredients here</div>
+    </div>
+  </div>
+
+  <button id="check-btn" class="action-btn">Check Answer</button>
+  <button id="next-btn" class="action-btn">Next Roll</button>
+  <div id="feedback"></div>
+  <div id="correct-answers"></div>
+
+  <script>
+    // --- Tab Functionality ---
+    function openTab(evt, tabName) {
+      var i, tabcontent, tablinks;
+      tabcontent = document.getElementsByClassName("tabcontent");
+      for (i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+      }
+      tablinks = document.getElementsByClassName("tablinks");
+      for (i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+      }
+      document.getElementById(tabName).style.display = "block";
+      evt.currentTarget.className += " active";
+    }
+
+    // --- Roll Definitions (All Rolls) ---
+    const rolls = {
+      "Princess Roll": {
+        inside: ["shrimp tempura", "avocado", "crabmeat"],
+        onTop: ["crawfish salad"],
+        sauce: ["spicy mango", "eel sauce"]
+      },
+      "Rocky Roll": {
+        inside: ["tuna", "avocado", "crunchy bits"],
+        onTop: ["jumbo shrimp", "avocado"],
+        sauce: ["spicy mayo", "eel sauce"]
+      },
+      "Shrimp Killer Roll": {
+        inside: ["shrimp tempura", "crab salad", "avocado"],
+        onTop: ["jumbo shrimp"],
+        sauce: ["spicy mayo", "honey wasabi", "eel sauce"]
+      },
+      "Cow Boy Roll": {
+        inside: ["smoked salmon", "cream cheese", "avocado"],
+        onTop: ["spicy crab"],
+        sauce: ["eel sauce", "spicy mayo"]
+      },
+      "Panther Roll": {
+        inside: ["crab salad", "cream cheese", "avocado"],
+        onTop: ["eel sauce"],
+        sauce: []
+      },
+      "House Roll": {
+        inside: ["tuna", "salmon", "yellowtail", "crab", "avocado"],
+        onTop: ["masago"],
+        sauce: []
+      },
+      "Happy Roll": {
+        inside: ["crabmeat", "cream cheese", "shrimp", "avocado"],
+        onTop: ["crawfish salad"],
+        sauce: ["spicy mango", "eel sauce"]
+      },
+      "Sakura Roll": {
+        inside: ["shrimp tempura"],
+        onTop: ["fresh salmon", "avocado"],
+        sauce: ["spicy mayo"]
+      },
+      "Monster Roll": {
+        inside: ["spicy tuna roll"],
+        onTop: ["white tuna", "avocado"],
+        sauce: ["spicy mayo", "honey wasabi"]
+      },
+      "Yummy Roll": {
+        inside: ["shrimp tempura", "cucumber"],
+        onTop: ["eel", "avocado"],
+        sauce: ["eel sauce"]
+      },
+      "Caterpillar Roll": {
+        inside: ["eel", "cucumber"],
+        onTop: ["avocado"],
+        sauce: ["eel sauce"]
+      },
+      "Texas Roll": {
+        inside: ["mango", "cream cheese", "crab stick"],
+        onTop: ["smoked salmon", "avocado"],
+        sauce: []
+      },
+      "Jimmy’s Sexy": {
+        inside: ["tempura shrimp"],
+        onTop: ["chopped tuna", "chopped salmon", "white tuna", "avocado", "crabmeat", "crunchy", "red tobiko", "black tobiko"],
+        sauce: ["eel sauce", "honey wasabi"]
+      },
+      "New York Roll": {
+        inside: ["shrimp tempura", "avocado"],
+        onTop: ["spicy crabmeat", "crunchy"],
+        sauce: ["spicy mayo", "eel"]
+      },
+      "Out of Control": {
+        inside: ["smoked salmon", "cream cheese", "scallion", "avocado"],
+        onTop: ["red tobiko", "black tobiko", "yellow tobiko", "green tobiko"],
+        sauce: []
+      },
+      "Hot Girl": {
+        inside: ["salmon", "avocado", "crabmeat", "cream cheese", "eel", "tamago"],
+        onTop: ["scallion", "masago"],
+        sauce: ["eel", "spicy mayo"]
+      },
+      "Lobster Rock 'n' Roll": {
+        inside: ["shrimp", "avocado", "crabmeat"],
+        onTop: ["lobster salad"],
+        sauce: ["spicy mango", "black tobiko"]
+      },
+      "Ticket to Heaven": {
+        inside: ["deep-fried jalapeño", "cream cheese", "tuna", "salmon"],
+        onTop: ["masago", "scallion"],
+        sauce: ["eel", "sriracha"]
+      },
+      "Ocean 21": {
+        inside: ["crispy calamari", "avocado", "crabmeat"],
+        onTop: ["crunchy spicy snow crab", "red tobiko"],
+        sauce: []
+      },
+      "Spicy Mexico": {
+        inside: ["tempura shrimp"],
+        onTop: ["spicy yellowtail", "sliced jalapeño", "red tobiko"],
+        sauce: []
+      },
+      "Forney": {
+        inside: ["tempura lobster", "avocado", "cucumber"],
+        onTop: [],
+        sauce: ["spicy mango"],
+        wrap: "pink soybean paper"
+      },
+      "Tiger": {
+        inside: ["tuna", "salmon", "yellowtail", "eel", "crunchy bits"],
+        onTop: [],
+        sauce: ["eel sauce"],
+        wrap: "yellow soybean paper"
+      },
+      "Toro Dynasty": {
+        inside: ["crunchy spicy tuna", "avocado roll"],
+        onTop: ["taro", "fatty salmon", "yellowtail belly", "scallion"],
+        sauce: []
+      },
+      "Butterfly Kiss": {
+        inside: ["crabmeat", "avocado"],
+        onTop: [],
+        sauce: ["ponzu"],
+        wrap: "fresh salmon sashimi"
+      },
+      "Rainbow": {
+        inside: ["crabmeat", "cucumber", "avocado"],
+        onTop: ["tuna", "salmon", "yellowtail", "avocado", "tuna"],
+        sauce: []
+      },
+      "Memories of Geisha": {
+        inside: ["crabmeat", "cream cheese", "avocado", "spicy tuna"],
+        onTop: [],
+        sauce: ["eel sauce", "spicy mango sauce"],
+        extra: ["masago", "scallion"],
+        wrap: "soy paper"
+      },
+      "Volcano Roll": {
+        inside: ["california roll"],
+        onTop: ["crawfish", "jalapeño", "red onion", "mushrooms"],
+        sauce: ["volcano sauce"]
+      },
+      "Luck Roll": {
+        inside: ["crabmeat", "shrimp", "avocado"],
+        onTop: [],
+        sauce: [],
+        wrap: "cucumber"
+      },
+      "Naruto": {
+        inside: ["salmon", "tuna", "yellowtail", "crab sticks", "avocado"],
+        onTop: ["masago"],
+        sauce: ["ponzu"],
+        wrap: "cucumber"
+      },
+      "Rainbow Love Roll": {
+        inside: ["fried calamari", "cream cheese", "jalapeño"],
+        onTop: ["tuna", "salmon", "avocado", "spicy mayo", "eel sauce", "sriracha", "crab mix", "masago", "scallions"],
+        sauce: []
+      }
+    };
+
+    // --- Ingredient Categories ---
+    const ingredientCategories = {
+      proteins: [
+        "shrimp tempura", "tuna", "jumbo shrimp", "crabmeat", "crab salad",
+        "smoked salmon", "salmon", "yellowtail", "fresh salmon", "white tuna",
+        "spicy tuna roll", "tempura shrimp", "chopped tuna", "chopped salmon",
+        "eel", "tempura lobster", "crawfish", "crispy calamari", "fatty salmon",
+        "yellowtail belly", "fresh salmon sashimi", "lobster salad"
+      ],
+      vegetables: [
+        "avocado", "cucumber", "scallion", "mango", "deep-fried jalapeño",
+        "red onion", "mushrooms", "jalapeño", "crawfish salad"
+      ],
+      sauces: [
+        "spicy mango", "eel sauce", "honey wasabi", "spicy crab", "spicy mayo",
+        "sriracha", "ponzu", "volcano sauce"
+      ],
+      toppings: [
+        "masago", "red tobiko", "black tobiko", "yellow tobiko", "green tobiko",
+        "crunchy bits", "crunchy", "crab mix"
+      ],
+      wraps: [
+        "pink soybean paper", "yellow soybean paper", "soy paper"
+      ],
+      others: [
+        "cream cheese", "crab stick", "california roll"
+      ]
+    };
+
+    // --- Helper Functions ---
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function attachDraggableEvents(el) {
+      el.setAttribute("draggable", "true");
+      el.addEventListener("dragstart", (e) => {
+        e.dataTransfer.setData("text/plain", el.id);
+        el.classList.add("dragging");
+      });
+      el.addEventListener("dragend", () => {
+        el.classList.remove("dragging");
+      });
+      el.addEventListener("dblclick", () => {
+        if (el.parentElement && !el.parentElement.classList.contains("ingredient-grid")) {
+          el.parentElement.removeChild(el);
+        }
+      });
+    }
+
+    function loadIngredientPool() {
+      for (const category in ingredientCategories) {
+        const container = document.getElementById("pool-" + category);
+        if (container) {
+          container.innerHTML = "";
+          const items = ingredientCategories[category];
+          const shuffled = shuffleArray([...items]);
+          shuffled.forEach(ing => {
+            const div = document.createElement("div");
+            div.textContent = ing;
+            div.classList.add("ingredient");
+            div.dataset.ingredient = ing.toLowerCase();
+            div.id = "pool-" + category + "-" + ing.replace(/\s+/g, '-') + "-" + Math.floor(Math.random() * 10000);
+            attachDraggableEvents(div);
+            container.appendChild(div);
+          });
+        }
+      }
+    }
+
+    function setUpDropZone(zone) {
+      zone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        zone.classList.add("highlight");
+      });
+      zone.addEventListener("dragleave", () => {
+        zone.classList.remove("highlight");
+      });
+      zone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        zone.classList.remove("highlight");
+        const ingredientId = e.dataTransfer.getData("text/plain");
+        const draggedEl = document.getElementById(ingredientId);
+        if (!draggedEl) return;
+        if (draggedEl.parentElement.classList.contains("ingredient-grid") ||
+            draggedEl.parentElement.classList.contains("tabcontent")) {
+          const clone = draggedEl.cloneNode(true);
+          clone.id = draggedEl.id + "-" + new Date().getTime();
+          attachDraggableEvents(clone);
+          zone.appendChild(clone);
+        } else {
+          zone.appendChild(draggedEl);
+        }
+      });
+    }
+
+    function getZoneIngredients(zoneId) {
+      const zone = document.getElementById(zoneId);
+      const children = Array.from(zone.children);
+      return children.map(child => child.textContent.trim().toLowerCase());
+    }
+
+    function colorZone(zoneId, correctArray) {
+      const zone = document.getElementById(zoneId);
+      Array.from(zone.children).forEach(child => {
+        const text = child.textContent.trim().toLowerCase();
+        child.style.backgroundColor = correctArray.includes(text) ? "lightgreen" : "lightcoral";
+      });
+    }
+
+    function arraysEqual(arr1, arr2) {
+      if (arr1.length !== arr2.length) return false;
+      const sorted1 = arr1.slice().sort();
+      const sorted2 = arr2.slice().sort();
+      return sorted1.every((val, idx) => val === sorted2[idx]);
+    }
+
+    // --- Main Functions ---
+    function loadRandomRoll() {
+      const rollNames = Object.keys(rolls);
+      const randomIndex = Math.floor(Math.random() * rollNames.length);
+      const rollName = rollNames[randomIndex];
+      currentRoll = rolls[rollName];
+      document.getElementById("roll-name").textContent = rollName;
+      document.getElementById("inside-zone").innerHTML = "Drop inside ingredients here";
+      document.getElementById("ontop-zone").innerHTML = "Drop on top ingredients here";
+      document.getElementById("sauce-zone").innerHTML = "Drop sauce here";
+      document.getElementById("feedback").textContent = "";
+      document.getElementById("correct-answers").innerHTML = "";
+      
+      // Optional zones for wrap and extra
+      if (currentRoll.hasOwnProperty("wrap")) {
+        document.getElementById("wrap-container").style.display = "block";
+        document.getElementById("wrap-zone").innerHTML = "Drop wrap here";
+      } else {
+        document.getElementById("wrap-container").style.display = "none";
+      }
+      if (currentRoll.hasOwnProperty("extra")) {
+        document.getElementById("extra-container").style.display = "block";
+        document.getElementById("extra-zone").innerHTML = "Drop extra ingredients here";
+      } else {
+        document.getElementById("extra-container").style.display = "none";
+      }
+      loadIngredientPool();
+    }
+
+    function checkAnswer() {
+      const feedbackEl = document.getElementById("feedback");
+      const correctAnswersEl = document.getElementById("correct-answers");
+      const userInside = getZoneIngredients("inside-zone");
+      const userOnTop = getZoneIngredients("ontop-zone");
+      const userSauce = getZoneIngredients("sauce-zone");
+      let userWrap = [], userExtra = [];
+      if (currentRoll.hasOwnProperty("wrap")) {
+        userWrap = getZoneIngredients("wrap-zone");
+      }
+      if (currentRoll.hasOwnProperty("extra")) {
+        userExtra = getZoneIngredients("extra-zone");
+      }
+      const correctInside = currentRoll.inside.map(x => x.toLowerCase());
+      const correctOnTop = currentRoll.onTop.map(x => x.toLowerCase());
+      const correctSauce = currentRoll.sauce.map(x => x.toLowerCase());
+      let correctWrap = [], correctExtra = [];
+      if (currentRoll.hasOwnProperty("wrap")) {
+        correctWrap = Array.isArray(currentRoll.wrap) ? currentRoll.wrap.map(x => x.toLowerCase()) : [currentRoll.wrap.toLowerCase()];
+      }
+      if (currentRoll.hasOwnProperty("extra")) {
+        correctExtra = Array.isArray(currentRoll.extra) ? currentRoll.extra.map(x => x.toLowerCase()) : [currentRoll.extra.toLowerCase()];
+      }
+      colorZone("inside-zone", correctInside);
+      colorZone("ontop-zone", correctOnTop);
+      colorZone("sauce-zone", correctSauce);
+      if (currentRoll.hasOwnProperty("wrap")) {
+        colorZone("wrap-zone", correctWrap);
+      }
+      if (currentRoll.hasOwnProperty("extra")) {
+        colorZone("extra-zone", correctExtra);
+      }
+      const insideCorrect = arraysEqual(userInside, correctInside);
+      const onTopCorrect = arraysEqual(userOnTop, correctOnTop);
+      const sauceCorrect = arraysEqual(userSauce, correctSauce);
+      const wrapCorrect = currentRoll.hasOwnProperty("wrap") ? arraysEqual(userWrap, correctWrap) : true;
+      const extraCorrect = currentRoll.hasOwnProperty("extra") ? arraysEqual(userExtra, correctExtra) : true;
+      if (insideCorrect && onTopCorrect && sauceCorrect && wrapCorrect && extraCorrect) {
+        feedbackEl.textContent = "Correct! Well done.";
+        feedbackEl.style.color = "green";
+      } else {
+        feedbackEl.textContent = "Incorrect. Please review your answers.";
+        feedbackEl.style.color = "red";
+      }
+      let answersHTML = "<p><strong>Correct Inside:</strong> " + currentRoll.inside.join(", ") + "</p>" +
+                        "<p><strong>Correct On Top:</strong> " + currentRoll.onTop.join(", ") + "</p>" +
+                        "<p><strong>Correct Sauce:</strong> " + currentRoll.sauce.join(", ") + "</p>";
+      if (currentRoll.hasOwnProperty("wrap")) {
+        answersHTML += "<p><strong>Correct Wrap:</strong> " + (Array.isArray(currentRoll.wrap) ? currentRoll.wrap.join(", ") : currentRoll.wrap) + "</p>";
+      }
+      if (currentRoll.hasOwnProperty("extra")) {
+        answersHTML += "<p><strong>Correct Extra:</strong> " + (Array.isArray(currentRoll.extra) ? currentRoll.extra.join(", ") : currentRoll.extra) + "</p>";
+      }
+      correctAnswersEl.innerHTML = answersHTML;
+    }
+
+    let currentRoll = null;
+    setUpDropZone(document.getElementById("inside-zone"));
+    setUpDropZone(document.getElementById("ontop-zone"));
+    setUpDropZone(document.getElementById("sauce-zone"));
+    setUpDropZone(document.getElementById("wrap-zone"));
+    setUpDropZone(document.getElementById("extra-zone"));
+    document.getElementById("check-btn").addEventListener("click", checkAnswer);
+    document.getElementById("next-btn").addEventListener("click", loadRandomRoll);
+    window.onload = loadRandomRoll;
+  </script>
+</body>
+</html>
